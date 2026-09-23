@@ -1,19 +1,59 @@
-import { MutationCtx, mutation } from "./_generated/server";
+import { MutationCtx, mutation, query } from "./_generated/server";
+import { ok, fail } from "./lib/api";
 
 /**
- * npm run seed equivalent — idempotent, upsert-by-slug (no uncontrolled
- * duplicates). Creates demo admin/user, the Feedants Classical Dance
- * competition, judge, previous winners, rewards, dates, tabs content.
+ * Demo data seeder — idempotent, upsert-by-slug (no uncontrolled duplicates).
+ * Creates the Feedants Classical Dance competition, judge, previous winners,
+ * rewards, dates, tabs content, and demo user roles.
  *
- * Also safe to re-run: competitions are matched by slug; demo users by email.
+ * DATES ARE RELATIVE TO SEED TIME so the demo is always live and exercises
+ * the same overlapping-window structure as the assignment reference:
+ *   registration: [now-45d … now+8d]   → REGISTRATION_OPEN, live countdown
+ *   submission:   [now-2d  … now+25d]  → overlaps registration (reference
+ *                                        behavior); upload CTA available to
+ *                                        paid registrants
+ *   results:       now+30d             → result date in the future
+ *
+ * `demoStatus` tells the client when to (re)seed: never seeded, or the demo
+ * competition has fully concluded (result date passed) → refresh its dates.
  */
+export const DEMO_SLUG = "feedants-classical-dance";
+
+const DAY = 24 * 60 * 60 * 1000;
+
+export const demoStatus = query({
+  args: {},
+  handler: async (ctx): Promise<unknown> => {
+    try {
+      const comp = await ctx.db
+        .query("competitions")
+        .withIndex("by_slug", (q) => q.eq("slug", DEMO_SLUG))
+        .first();
+      if (!comp) return ok({ seed: true });
+      // Only refresh when the demo has fully concluded — never while live.
+      return ok({ seed: comp.resultDate <= Date.now() });
+    } catch (err) {
+      return fail(err);
+    }
+  },
+});
+
+function demoDates(now: number) {
+  return {
+    registrationStart: now - 45 * DAY,
+    submissionStart: now - 2 * DAY,
+    registrationEnd: now + 8 * DAY,
+    submissionEnd: now + 25 * DAY,
+    resultDate: now + 30 * DAY,
+  };
+}
+
 export const seedAll = mutation({
   args: {},
   handler: async (ctx: MutationCtx): Promise<unknown> => {
     // ─── Demo accounts (local development only) ───────────────────────────────
-    // Passwords in the assignment: Demo@12345 / Admin@12345 — Convex Auth
-    // manages credential hashing; demo users are provisioned via the app's
-    // signup flow (email OTP) and granted roles here if they exist.
+    // Convex Auth manages credential hashing; demo users are provisioned via
+    // the app's signup flow (email OTP) and granted roles here if they exist.
     const adminEmail = "admin@feedants.local";
     const demoEmail = "demo@feedants.local";
     for (const [email, role, name] of [
@@ -34,18 +74,9 @@ export const seedAll = mutation({
     }
 
     // ─── Feedants Classical Dance (reference data) ────────────────────────────
-    // All dates/times are database-driven; epoch values are demo data only.
-    const DAY = 24 * 60 * 60 * 1000;
-
-    // IST = UTC+5:30 → reference IST times converted to UTC epochs.
-    const submissionStart = Date.parse("2026-08-05T22:30:00Z"); // 6 Aug 26 04:00 AM IST
-    const submissionEnd = Date.parse("2026-08-30T18:25:00Z"); // 30 Aug 26 11:55 PM IST
-    const registrationEnd = Date.parse("2026-08-10T18:20:00Z"); // 10 Aug 26 11:50 PM IST
-    const resultDate = Date.parse("2026-09-01T18:20:00Z"); // 1 Sept 26 11:50 PM IST
-    const registrationStart = submissionStart - 45 * DAY;
-
+    // All dates/times are database-driven and relative to seeding time.
     const comp = {
-      slug: "feedants-classical-dance",
+      slug: DEMO_SLUG,
       title: "Feedants Classical Dance",
       titleLocalized: { ENG: "Feedants Classical Dance", HINDI: "फ़ीडैंट्स शास्त्रीय नृत्य" },
       category: "Dance",
@@ -54,11 +85,7 @@ export const seedAll = mutation({
       entryFee: 99,
       maxParticipants: 20,
       currentParticipants: 1,
-      registrationStart,
-      registrationEnd,
-      submissionStart,
-      submissionEnd,
-      resultDate,
+      ...demoDates(Date.now()),
       judge: {
         name: "Manju Dubey",
         designation: "Professional Kathak Dancer",
@@ -121,13 +148,17 @@ export const seedAll = mutation({
       .query("competitions")
       .withIndex("by_slug", (q) => q.eq("slug", comp.slug))
       .first();
+
     if (existingComp) {
-      await ctx.db.patch(existingComp._id, comp);
-      console.log("[seed] competition updated:", comp.slug);
-      return { competitionId: existingComp._id, seeded: "updated" };
+      // Refresh lifecycle dates only — never reset live participant counts,
+      // registrations, or payment state on a demo-date refresh.
+      await ctx.db.patch(existingComp._id, demoDates(Date.now()));
+      console.log("[seed] demo competition dates refreshed:", comp.slug);
+      return { competitionId: existingComp._id, seeded: "dates-refreshed" };
     }
+
     const competitionId = await ctx.db.insert("competitions", comp);
-    console.log("[seed] competition created:", comp.slug);
+    console.log("[seed] demo competition created:", comp.slug);
     return { competitionId, seeded: "created" };
   },
 });

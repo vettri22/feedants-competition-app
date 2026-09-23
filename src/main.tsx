@@ -8,6 +8,7 @@ import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation, Navigate } from "react-router";
 import { LanguageProvider } from "@/store/language";
+import { SeedGate } from "@/components/SeedGate";
 import "./index.css";
 
 // Lazy load route components for better code splitting
@@ -122,6 +123,7 @@ createRoot(document.getElementById("root")!).render(
       <ConvexAuthProvider client={convex}>
         <LanguageProvider>
           <BrowserRouter>
+            <SeedGate />
             <RouteSyncer />
             <Suspense fallback={<RouteLoading />}>
               <Routes>

@@ -125,6 +125,12 @@ const en = {
   "list.live": "Live",
   "list.empty": "No competitions right now. Check back soon!",
 
+  "explore.title": "Explore",
+  "explore.subtitle": "Find your stage by category",
+  "explore.searchPh": "Search competitions…",
+  "explore.noResults": "No matches found",
+  "explore.all": "All",
+
   "home.greeting": "Namaste",
   "home.tagline": "Your stage awaits",
   "home.featured": "Featured competition",
@@ -257,6 +263,12 @@ const hi: Record<TranslationKey, string> = {
   "list.upcoming": "आगामी",
   "list.live": "लाइव",
   "list.empty": "अभी कोई प्रतियोगिता नहीं। शीघ्र फिर देखें!",
+
+  "explore.title": "एक्सप्लोर",
+  "explore.subtitle": "श्रेणी से अपना मंच खोजें",
+  "explore.searchPh": "प्रतियोगिताएँ खोजें…",
+  "explore.noResults": "कोई मेल नहीं मिला",
+  "explore.all": "सभी",
 
   "home.greeting": "नमस्ते",
   "home.tagline": "आपका मंच तैयार है",

@@ -143,6 +143,37 @@ export const upsert = mutation({
   handler: (ctx, args) => createOrUpdateImpl(ctx, args),
 });
 
+/** GET /api/me/submissions — the signed-in user's submissions across competitions. */
+export const listMine = query({
+  args: {},
+  handler: async (ctx): Promise<unknown> => {
+    try {
+      const user = await requireUser(ctx);
+      const rows = await ctx.db
+        .query("submissions")
+        .withIndex("by_user", (q: any) => q.eq("userId", user._id))
+        .order("desc")
+        .collect();
+      const items = [];
+      for (const row of rows) {
+        const comp = await ctx.db.get(row.competitionId);
+        items.push({
+          id: row._id,
+          competitionSlug: comp?.slug ?? null,
+          competitionTitle: comp?.title ?? null,
+          title: row.title,
+          status: row.status,
+          submittedAt: row.submittedAt ?? null,
+          fileName: row.fileName ?? null,
+        });
+      }
+      return ok({ submissions: items });
+    } catch (err) {
+      return fail(err);
+    }
+  },
+});
+
 /** GET /api/competitions/:id/submission */
 export const get = query({
   args: { idOrSlug: v.string() },

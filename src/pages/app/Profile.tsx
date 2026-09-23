@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery as useConvexQuery } from "convex/react";
 import { useNavigate } from "react-router";
-import { Copy, LogOut, Megaphone, UserRound } from "lucide-react";
+import { Copy, Film, LogOut, Megaphone, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { StatusBar } from "@/components/mobile/StatusBar";
@@ -12,6 +12,7 @@ import { PhoneShell } from "@/pages/app/CompetitionDetail";
 import { useI18n } from "@/store/language";
 import { useAuth } from "@/hooks/use-auth";
 import { unwrapResult, describeError } from "@/lib/api-client";
+import { formatDateIST } from "@/lib/format";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function Profile() {
   const [generating, setGenerating] = useState(false);
 
   const referralMe = useConvexQuery(api.referrals.me, isAuthenticated ? {} : "skip");
+  const mySubsRaw = useConvexQuery(api.submissions.listMine, isAuthenticated ? {} : "skip");
   const referralCode = (() => {
     if (referralMe === undefined) return null;
     try {
@@ -88,6 +90,55 @@ export default function Profile() {
           </div>
           <LanguageSwitcher />
         </section>
+
+        {/* My submissions */}
+        {isAuthenticated && (
+          <section>
+            <p className="mb-2 px-1 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">
+              {t("profile.mySubmissions")}
+            </p>
+            {mySubsRaw === undefined ? null : (() => {
+              try {
+                const subs = unwrapResult<{ submissions: { id: string; competitionSlug: string | null; competitionTitle: string | null; title: string; status: string; submittedAt: number | null; fileName: string | null }[] }>(mySubsRaw).submissions;
+                if (subs.length === 0) {
+                  return (
+                    <div className="rounded-2xl border border-dashed border-border px-4 py-3 text-[12.5px] text-muted-foreground">
+                      {t("common.empty")}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    {subs.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => s.competitionSlug && navigate(`/app/competitions/${s.competitionSlug}`)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3.5 text-left cursor-pointer transition-colors hover:border-primary/40"
+                      >
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-secondary">
+                          <Film className="size-5 text-primary" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-bold text-foreground">{s.title}</span>
+                          <span className="block truncate text-[12px] text-muted-foreground">
+                            {s.competitionTitle ?? ""}
+                            {s.submittedAt ? ` · ${formatDateIST(s.submittedAt)}` : ""}
+                          </span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-teal-50 px-2 py-0.5 text-[10.5px] font-bold text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+                          {s.status}
+                        </span>
+                      </button>
+                    ))
+                  }
+                  </div>
+                );
+              } catch {
+                return null;
+              }
+            })()}
+          </section>
+        )}
 
         {/* Referral */}
         <button
